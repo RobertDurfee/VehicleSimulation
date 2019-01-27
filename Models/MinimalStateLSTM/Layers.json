@@ -1,0 +1,5 @@
+[
+    { "type": "InputLayer", "batch_input_shape": [ 86, 100, 2 ] },
+    { "type": "LSTM", "units": 200, "return_sequences": true, "stateful": true },
+    { "type": "TimeDistributedDense", "units": 1, "activation": "linear" }
+]
