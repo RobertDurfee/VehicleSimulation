@@ -164,8 +164,10 @@ def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
     
     """
     # Initialize callbacks
-    evaluate_callback = Evaluate(X_test, Y_test, eval_batch_size,
-                                 eval_epochs, eval_steps, eval_frequency)
+    eval_summary_filename = path.join(job_dir, 'evaluation_results.csv')
+    evaluate_callback = Evaluate(eval_summary_filename, X_test, Y_test,
+                                 eval_batch_size, eval_epochs, eval_steps,
+                                 eval_frequency)
 
     if not job_dir.startswith('gs://'):
         makedirs(path.join(job_dir, 'weights'), exist_ok=True)
