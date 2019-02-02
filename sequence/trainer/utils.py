@@ -3,6 +3,8 @@ import os
 import pandas as pd
 from math import ceil
 import numpy as np
+from os import path
+from shutil import rmtree
 
 
 def load_data(data_file, pad_val=-1.):
@@ -10,7 +12,7 @@ def load_data(data_file, pad_val=-1.):
     max_timesteps, features).
 
     Args:
-        data_file (str): CSV file containing data to load.
+        data_file (str): Local or remote CSV file containing data to load.
         pad_val (float): Value to use for padding suffixes of sequences less
             than max_timesteps. This should be an invalid input.
 
@@ -19,7 +21,20 @@ def load_data(data_file, pad_val=-1.):
         ndarray: Target data of shape (n_samples, max_timesteps, out_features).
 
     """
-    df = pd.read_csv(data_file, header=[0, 1], index_col=0)
+    # Copy remote file from GCS
+    filename = path.basename(data_file)
+    if data_file.startswith('gs://'):
+
+        dirname = mkdtemp()
+        local_file = path.join(dirname, filename)
+        remote_file = data_file
+
+        copy_from_gcs(remote_file, local_file)
+
+    else:
+        dirname = path.dirname(data_file)
+
+    df = pd.read_csv(path.join(dirname, filename), header=[0, 1], index_col=0)
 
     groups = df.groupby(df.index)
 
@@ -35,6 +50,10 @@ def load_data(data_file, pad_val=-1.):
 
         X[i, :len(group_df), :] += group_df['Input'].values - pad_val
         Y[i, :len(group_df), :] += group_df['Target'].values - pad_val
+
+    # Remove temporary directory if remote
+    if data_file.startswith('gs://'):
+        rmtree(dirname)
 
     return X, Y
 
