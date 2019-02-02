@@ -1,18 +1,20 @@
 import argparse
 from .model import create_model, compile_model, batch_generator, copy_compile_model
 from .utils import load_data, scale, pad
-from keras.callbacks import Callback, ModelCheckpoint, CSVLogger
+from keras.callbacks import Callback, TensorBoard
 from math import ceil
-from os import path, makedirs
+from os import path, makedirs, remove
+from tempfile import mkdtemp
+from ..utils import copy_to_gcs
 
 
 class Evaluate(Callback):
 
-    def __init__(self, job_dir, X, Y, batch_size=100, epochs=1, steps=None, frequency=5):
+    def __init__(self, filepath, X, Y, batch_size=100, epochs=1, steps=None, frequency=5):
         """Initialize callback for continuous evaluation.
         
         Args:
-            job_dir (str): Directory to create and maintain the evaluation_results.csv.
+            filepath (str): Local or remote file name for evaluation summary.
             X (ndarray): Test inputs (n_samples, max_timesteps, features).
             Y (ndarray): Test targets (n_samples, max_timesteps, features).
             batch_size (int): Timestep batch size for test steps.
@@ -22,7 +24,13 @@ class Evaluate(Callback):
             frequency (int): Perform one evaluation every N epochs.
 
         """
-        self.job_dir = job_dir
+        self.filepath = filepath
+        self.filename = path.basename(self.filepath)
+        if self.filepath.startswith('gs://'):
+            self.dirname = mkdtemp()
+        else:
+            self.dirname = path.dirname(self.filepath)
+
         self.X = X
         self.Y = Y
         self.batch_size = batch_size
@@ -34,8 +42,17 @@ class Evaluate(Callback):
             self.steps = steps
         self.frequency = frequency
 
-        with open(path.join(self.job_dir, 'evaluation_results.csv'), 'w') as evaluation_results:
-            evaluation_results.write('epoch,loss\n')
+        # Initialize the summary header
+        with open(path.join(self.dirname, self.filename), 'w') as eval_summary:
+            eval_summary.write('epoch,loss\n')
+        
+        # Copy to GCS if remote
+        if self.filepath.startswith('gs://'):
+
+            local_file = path.join(self.dirname, self.filename)
+            remote_file = self.filepath
+
+            copy_to_gcs(local_file, remote_file)
 
     def on_epoch_end(self, epoch, logs=None):
         """Triggers after each epoch. If frequency epochs reached, evaluation
@@ -46,7 +63,7 @@ class Evaluate(Callback):
             logs (dict of str: float): Metric results for this training epoch.
 
         """
-        if epoch > 0 and epoch % self.frequency == 0:
+        if (epoch + 1) % self.frequency == 0:
 
             # Create the evaluation model from existing model with new input shape
             n_samples, _, in_features = self.X.shape
@@ -56,10 +73,67 @@ class Evaluate(Callback):
             print('Evaluating')
             loss = eval_model.evaluate_generator(batch_generator(self.X, self.Y, self.batch_size),
                                                  steps=self.epochs*self.steps, verbose=1)
+            
+            # Record metric
+            with open(path.join(self.dirname, self.filename), 'a') as eval_summary:
+                eval_summary.write('{},{}\n'.format(epoch, loss))
+            
+            # Copy to GCS if remote
+            if self.filepath.startswith('gs://'):
+                
+                local_file = path.join(self.dirname, self.filename)
+                remote_file = self.filepath
 
-            # Stream results to CSV
-            with open(path.join(self.job_dir, 'evaluation_results.csv'), 'a') as evaluation_results:
-                evaluation_results.write('{},{}\n'.format(epoch, loss))
+                copy_to_gcs(local_file, remote_file)
+
+
+class ModelCheckpoint(Callback):
+    """More limited model checkpoint, but supports GCS saving."""
+
+    def __init__(self, filepath, save_weights_only=False, period=1):
+        """Initialize model checkpoint.
+
+        Args:
+            filepath (str): Local or remote file name for checkpoints.
+            save_weights_only (bool): Whether to just save weights.
+            period (int): Save checkpoint every N epochs.
+
+        """
+        self.filepath = filepath
+        self.filename = path.basename(filepath)
+        if self.filepath.startswith('gs://'):
+            self.dirname = mkdtemp()
+        else:
+            self.dirname = path.dirname(filepath)
+
+        self.save_weights_only = save_weights_only
+        self.period = period
+
+    def on_epoch_end(self, epoch, logs=None):
+        """Triggers after every epoch. If period is reached, model will be
+        saved.
+
+        Args:
+            epoch (int): Current epoch (0-index).
+            logs (dict of str: float): Metrics for current epoch.
+
+        """
+        if (epoch + 1) % self.period == 0:
+
+            logs['epoch'] = epoch + 1
+            local_file = path.join(self.dirname, self.filename.format(**logs))
+
+            if self.save_weights_only:
+                self.model.save_weights(local_file)
+            else:
+                self.model.save(local_file)
+            
+            if self.filepath.startswith('gs://'):
+
+                remote_file = self.filepath.format(**logs)
+
+                copy_to_gcs(local_file, remote_file)
+                remove(local_file)
 
 
 def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
@@ -90,20 +164,19 @@ def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
     
     """
     # Initialize callbacks
-    evaluate_callback = Evaluate(job_dir, X_test, Y_test, eval_batch_size,
+    evaluate_callback = Evaluate(X_test, Y_test, eval_batch_size,
                                  eval_epochs, eval_steps, eval_frequency)
 
-    makedirs(path.join(job_dir, 'weights'), exist_ok=True)
+    if not job_dir.startswith('gs://'):
+        makedirs(path.join(job_dir, 'weights'), exist_ok=True)
     checkpoint_filename = path.join(job_dir, 'weights', 'E{epoch:03d}L{loss:.6E}.hdf5')
     checkpoint_callback = ModelCheckpoint(checkpoint_filename,
                                           period=checkpoint_frequency,
-                                          monitor='loss', mode='min',
                                           save_weights_only=True)
     
-    logging_filename = path.join(job_dir, 'training_results.csv')
-    logging_callback = CSVLogger(logging_filename, append=True)
-
-    callbacks = [evaluate_callback, checkpoint_callback, logging_callback]
+    tensorboard_callback = TensorBoard(log_dir=path.join(job_dir, 'logs'))
+    
+    callbacks = [evaluate_callback, checkpoint_callback, tensorboard_callback]
 
     # Start the training loop
     if not train_steps:
