@@ -5,7 +5,7 @@ from math import ceil
 import numpy as np
 from os import path
 from shutil import rmtree
-from ..utils import copy_from_gcs
+from sequence.utils import copy_from_gcs
 from tempfile import mkdtemp
 
 

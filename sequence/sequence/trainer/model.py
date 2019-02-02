@@ -1,7 +1,7 @@
 from keras.models import Sequential, clone_model
 from keras.layers import InputLayer, SimpleRNN, GRU, LSTM, TimeDistributed, Dense
 from keras.optimizers import SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam
-from .utils import pad
+from sequence.trainer.utils import pad
 
 
 def create_model(batch_input_shape, hidden_units, target_dim,

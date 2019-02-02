@@ -3,7 +3,7 @@ from tempfile import mkdtemp
 import os
 from os import path
 from shutil import rmtree
-from data.preprocess import load, split
+from sequence.data.preprocess import load, split
 import numpy as np
 from math import isnan
 import pandas as pd

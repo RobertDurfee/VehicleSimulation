@@ -10,7 +10,7 @@ from os import path, makedirs, listdir
 import random
 from google.cloud import storage
 from shutil import rmtree
-from ..utils import copy_to_gcs
+from sequence.utils import copy_to_gcs
 
 
 def extract(zip_file, out_dir):

@@ -1,5 +1,5 @@
 from unittest import TestCase
-from trainer.utils import pad, scale, load_data
+from sequence.trainer.utils import pad, scale, load_data
 from tempfile import mkstemp
 import numpy as np
 import os

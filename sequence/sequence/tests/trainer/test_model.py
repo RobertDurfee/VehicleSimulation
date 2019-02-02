@@ -1,6 +1,6 @@
 from unittest import TestCase
 import numpy as np
-from trainer.model import batch_generator, create_model, compile_model, copy_compile_model
+from sequence.trainer.model import batch_generator, create_model, compile_model, copy_compile_model
 import sys
 from keras.models import Sequential
 from keras.layers import InputLayer, Dense, LSTM, TimeDistributed

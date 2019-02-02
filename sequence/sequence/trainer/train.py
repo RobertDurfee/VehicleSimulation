@@ -1,12 +1,12 @@
 import argparse
-from .model import create_model, compile_model, batch_generator, copy_compile_model
-from .utils import load_data, scale, pad
+from sequence.trainer.model import create_model, compile_model, batch_generator, copy_compile_model
+from sequence.trainer.utils import load_data, scale, pad
 from keras.callbacks import Callback, TensorBoard
 from math import ceil
 from os import path, makedirs, remove
 from shutil import rmtree
 from tempfile import mkdtemp
-from ..utils import copy_to_gcs
+from sequence.utils import copy_to_gcs
 
 
 class Evaluate(Callback):
