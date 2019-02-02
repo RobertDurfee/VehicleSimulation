@@ -146,16 +146,16 @@ def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
         makedirs(data_path, exist_ok=True)
 
         print('Saving all data locally...')
-        df.to_csv(path.join(data_path, 'all.csv'))
+        df.to_csv(path.join(data_path, 'all.csv'), index=False)
 
         print('Splitting into train/test sets...')
         train_df, test_df = split(df, test_split, shuffle)
 
         print('Saving training data locally...')
-        train_df.to_csv(path.join(data_path, 'train.csv'))
+        train_df.to_csv(path.join(data_path, 'train.csv'), index=False)
 
         print('Saving test data locally...')
-        test_df.to_csv(path.join(data_path, 'test.csv'))
+        test_df.to_csv(path.join(data_path, 'test.csv'), index=False)
 
         if job_dir.startswith('gs://'):
 
