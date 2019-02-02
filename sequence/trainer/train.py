@@ -4,6 +4,7 @@ from .utils import load_data, scale, pad
 from keras.callbacks import Callback, TensorBoard
 from math import ceil
 from os import path, makedirs, remove
+from shutil import rmtree
 from tempfile import mkdtemp
 from ..utils import copy_to_gcs
 
@@ -86,6 +87,17 @@ class Evaluate(Callback):
 
                 copy_to_gcs(local_file, remote_file)
 
+    def on_train_end(self, logs=None):
+        """Triggered after all training completes. Cleans up temporary
+        directory (if remote logging).
+
+        Args:
+            logs (dict of str: float): Currently nothing is passed.
+
+        """
+        if self.filepath.startswith('gs://'):
+            rmtree(self.dirname)
+
 
 class ModelCheckpoint(Callback):
     """More limited model checkpoint, but supports GCS saving."""
@@ -136,6 +148,67 @@ class ModelCheckpoint(Callback):
                 remove(local_file)
 
 
+class CSVLogger(Callback):
+    """CSVLogger supporting GCS storage."""
+
+    def __init__(self, filepath):
+        """Initialize CSV training log callback.
+
+        Args:
+            filepath (str): Filename of log file.
+
+        """
+        self.filepath = filepath
+        self.filename = path.basename(self.filepath)
+        if self.filepath.startswith('gs://'):
+            self.dirname = mkdtemp()
+        else:
+            self.dirname = path.dirname(self.filepath)
+
+        # Intialize summary header
+        with open(path.join(self.dirname, self.filename), 'w') as train_summary:
+            train_summary.write('epoch,loss\n')
+        
+        # Copy to GCS is remote
+        if self.filepath.startswith('gs://'):
+
+            local_file = path.join(self.dirname, self.filename)
+            remote_file = self.filepath
+
+            copy_to_gcs(local_file, remote_file)
+    
+    def on_epoch_end(self, epoch, logs=None):
+        """Triggers after each epoch. Saves epoch metrics.
+
+        Args:
+            epoch (int): Index of epoch
+            logs (dict of str: float): Metric results for this training epoch.
+
+        """
+        # Log current metrics
+        with open(path.join(self.dirname, self.filename), 'a') as train_summary:
+            train_summary.write('{},{}\n'.format(epoch + 1, logs['loss']))
+        
+        # Copy to GCS if remote
+        if self.filepath.startswith('gs://'):
+
+            local_file = path.join(self.dirname, self.filename)
+            remote_file = self.filepath
+
+            copy_to_gcs(local_file, remote_file) 
+
+    def on_train_end(self, logs=None):
+        """Triggered after all training completes. Cleans up temporary
+        directory (if remote logging).
+
+        Args:
+            logs (dict of str: float): Currently nothing is passed.
+
+        """
+        if self.filepath.startswith('gs://'):
+            rmtree(self.dirname)
+
+
 def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
                        train_batch_size=100, eval_batch_size=100,
                        train_epochs=200, eval_epochs=1, train_steps=None,
@@ -164,11 +237,6 @@ def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
     
     """
     # Initialize callbacks
-    eval_summary_filename = path.join(job_dir, 'evaluation_results.csv')
-    evaluate_callback = Evaluate(eval_summary_filename, X_test, Y_test,
-                                 eval_batch_size, eval_epochs, eval_steps,
-                                 eval_frequency)
-
     if not job_dir.startswith('gs://'):
         makedirs(path.join(job_dir, 'weights'), exist_ok=True)
     checkpoint_filename = path.join(job_dir, 'weights', 'E{epoch:03d}L{loss:.6E}.hdf5')
@@ -176,9 +244,17 @@ def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
                                           period=checkpoint_frequency,
                                           save_weights_only=True)
     
-    tensorboard_callback = TensorBoard(log_dir=path.join(job_dir, 'logs'))
+    if not job_dir.startswith('gs://'):
+        makedirs(path.join(job_dir, 'logs'), exist_ok=True)
+    eval_summary_filename = path.join(job_dir, 'logs', 'evaluation_results.csv')
+    evaluate_callback = Evaluate(eval_summary_filename, X_test, Y_test,
+                                 eval_batch_size, eval_epochs, eval_steps,
+                                 eval_frequency)
+
+    train_summary_filename = path.join(job_dir, 'logs', 'training_results.csv')
+    logging_callback = CSVLogger(train_summary_filename)
     
-    callbacks = [evaluate_callback, checkpoint_callback, tensorboard_callback]
+    callbacks = [checkpoint_callback, evaluate_callback, logging_callback]
 
     # Start the training loop
     if not train_steps:
