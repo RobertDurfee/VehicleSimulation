@@ -50,8 +50,7 @@ def scale(X, min=0., max=1.):
     """Scale sequence data into a specified range.
 
     Args:
-        X (ndarray): Array of input of shape (n_samples, max_timesteps,
-            features).
+        X (ndarray): Array of input of shape (n_samples, features).
         min (float): New minimum for data.
         max (float): New maximum for data.
 
