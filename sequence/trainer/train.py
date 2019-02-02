@@ -77,7 +77,7 @@ class Evaluate(Callback):
             
             # Record metric
             with open(path.join(self.dirname, self.filename), 'a') as eval_summary:
-                eval_summary.write('{},{}\n'.format(epoch, loss))
+                eval_summary.write('{},{}\n'.format(epoch + 1, loss))
             
             # Copy to GCS if remote
             if self.filepath.startswith('gs://'):
@@ -254,7 +254,7 @@ def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
     train_summary_filename = path.join(job_dir, 'logs', 'training_results.csv')
     logging_callback = CSVLogger(train_summary_filename)
     
-    callbacks = [checkpoint_callback, evaluate_callback, logging_callback]
+    callbacks = [logging_callback, checkpoint_callback, evaluate_callback]
 
     # Start the training loop
     if not train_steps:
