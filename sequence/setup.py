@@ -7,6 +7,6 @@ setup(
     description='vehicle simulation sequence model',
     version='0.1.0',
     install_requires=required_packages,
-    packages=find_packages,
-    includ_package_data=True
+    packages=find_packages(),
+    include_package_data=True
 )
