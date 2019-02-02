@@ -23,7 +23,7 @@ def copy_to_gcs(local_file, remote_file):
     bucket = storage_client.get_bucket(bucket_name)
     blob = bucket.blob(object_name)
 
-    blob.upload_from_filename(local_file)
+    blob.upload_from_filename(local_file, content_type='text/plain')
 
 
 def copy_from_gcs(remote_file, local_file):
