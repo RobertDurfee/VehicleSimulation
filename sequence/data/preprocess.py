@@ -1,14 +1,15 @@
 from zipfile import ZipFile
 import argparse
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, mkdtemp
 from glob import glob
 import pandas as pd
 from uuid import uuid4
 import re
 import numpy as np
-from os import path
-from os import makedirs
+from os import path, makedirs, listdir
 import random
+from google.cloud import storage
+from shutil import rmtree
 
 
 def extract(zip_file, out_dir):
@@ -119,6 +120,29 @@ def split(df, test_frac=0.1, shuffle=True):
 
     return train_df, test_df
 
+gcs_url_re = re.compile(r"^(gs:\/\/)(?P<bucket_name>[a-z._\-]+)\/(?P<object_name>.+)$")
+
+def copy_to_gcs(local_file, remote_file):
+    """Copy a file from local storage to Google Cloud Storage.
+
+    Args:
+        local_file (str): Path to local file source.
+        remote_file (str): Path to remote file destination.
+
+    """
+    match = gcs_url_re.match(remote_file)
+    if not match:
+        raise ValueError('\'' + remote_file + '\' is a malformed GCS URL.')
+
+    bucket_name = match['bucket_name']
+    object_name = match['object_name'].replace('\\', '/')
+
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(object_name)
+
+    blob.upload_from_filename(local_file)
+
 
 def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
          test_split=0.10, shuffle=True):
@@ -127,7 +151,7 @@ def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
 
     Args:
         data_zip (str): Location of ANL D3 zipped data.
-        job_dir (str): Output directory for data files.
+        job_dir (str): Output directory for data files (local or remote GCS URI).
         in_features (list of str): Input features to extract from data set.
         out_features (list of str): Target features to extract from data set.
         missing_action (str): What to do with data sets with missing columns.
@@ -140,17 +164,51 @@ def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
     """
     with TemporaryDirectory() as temporary_directory:
 
+        print('Uncompressing data...')
         extract(data_zip, temporary_directory)
+
+        print('Extracting features...')
         df = load(temporary_directory, in_features, out_features, missing_action)
 
-        if not path.exists(path.join(job_dir, 'data')):
-            makedirs(path.join(job_dir, 'data'))
+        # If the `job_dir` is on GCS, save everything to temporary folder and
+        # upload at the end.
+        if job_dir.startswith('gs://'):
+            data_path = mkdtemp()
+        else:
+            data_path = path.join(job_dir, 'data')
 
-        df.to_csv(path.join(job_dir, 'data', 'all.csv'))
+        makedirs(data_path, exist_ok=True)
 
+        print('Saving all data locally...')
+        df.to_csv(path.join(data_path, 'all.csv'))
+
+        print('Splitting into train/test sets...')
         train_df, test_df = split(df, test_split, shuffle)
-        train_df.to_csv(path.join(job_dir, 'data', 'train.csv'))
-        test_df.to_csv(path.join(job_dir, 'data', 'test.csv'))
+
+        print('Saving training data locally...')
+        train_df.to_csv(path.join(data_path, 'train.csv'))
+
+        print('Saving test data locally...')
+        test_df.to_csv(path.join(data_path, 'test.csv'))
+
+        if job_dir.startswith('gs://'):
+
+            print('Copying to GCS...')
+
+            filenames = listdir(data_path)
+
+            for i in range(len(filenames)):
+
+                print('File {} of {}'.format(i, len(filenames)))
+
+                local_file = path.join(data_path, filenames[i])
+                remote_file = path.join(job_dir, 'data', filenames[i])
+
+                copy_to_gcs(local_file, remote_file)
+
+            rmtree(data_path)
+        
+        print('Done')
 
 
 if __name__ == '__main__':
