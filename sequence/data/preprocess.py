@@ -10,6 +10,7 @@ from os import path, makedirs, listdir
 import random
 from google.cloud import storage
 from shutil import rmtree
+from ..utils import copy_to_gcs
 
 
 def extract(zip_file, out_dir):
@@ -120,29 +121,6 @@ def split(df, test_frac=0.1, shuffle=True):
 
     return train_df, test_df
 
-gcs_url_re = re.compile(r"^(gs:\/\/)(?P<bucket_name>[a-z._\-]+)\/(?P<object_name>.+)$")
-
-def copy_to_gcs(local_file, remote_file):
-    """Copy a file from local storage to Google Cloud Storage.
-
-    Args:
-        local_file (str): Path to local file source.
-        remote_file (str): Path to remote file destination.
-
-    """
-    match = gcs_url_re.match(remote_file)
-    if not match:
-        raise ValueError('\'' + remote_file + '\' is a malformed GCS URL.')
-
-    bucket_name = match['bucket_name']
-    object_name = match['object_name'].replace('\\', '/')
-
-    storage_client = storage.Client()
-    bucket = storage_client.get_bucket(bucket_name)
-    blob = bucket.blob(object_name)
-
-    blob.upload_from_filename(local_file)
-
 
 def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
          test_split=0.10, shuffle=True):
@@ -199,7 +177,7 @@ def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
 
             for i in range(len(filenames)):
 
-                print('File {} of {}'.format(i, len(filenames)))
+                print('File {} of {}'.format(i + 1, len(filenames)))
 
                 local_file = path.join(data_path, filenames[i])
                 remote_file = path.join(job_dir, 'data', filenames[i])
