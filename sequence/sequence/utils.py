@@ -16,8 +16,8 @@ def copy_to_gcs(local_file, remote_file):
     if not match:
         raise ValueError('\'' + remote_file + '\' is a malformed GCS URL.')
 
-    bucket_name = match['bucket_name']
-    object_name = match['object_name'].replace('\\', '/')
+    bucket_name = match.group('bucket_name')
+    object_name = match.group('object_name').replace('\\', '/')
 
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_name)
@@ -38,8 +38,8 @@ def copy_from_gcs(remote_file, local_file):
     if not match:
         raise ValueError('\'' + remote_file + '\' is a malformed GCS URL.')
 
-    bucket_name = match['bucket_name']
-    object_name = match['object_name'].replace('\\', '/')
+    bucket_name = match.group('bucket_name')
+    object_name = match.group('object_name').replace('\\', '/')
 
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_name)
