@@ -116,8 +116,15 @@ def split(df, test_frac=0.1, shuffle=True):
 
     train_groups, test_groups = groups[:split_ind], groups[split_ind:]
 
-    train_df = pd.concat([train_group[1] for train_group in train_groups], sort=False)
-    test_df = pd.concat([test_group[1] for test_group in test_groups], sort=False)
+    if len(train_groups) > 0:
+        train_df = pd.concat([train_group[1] for train_group in train_groups], sort=False)
+    else:
+        train_df = pd.DataFrame()
+
+    if len(test_groups) > 0:
+        test_df = pd.concat([test_group[1] for test_group in test_groups], sort=False)
+    else:
+        test_df = pd.DataFrame()
 
     return train_df, test_df
 
@@ -163,11 +170,15 @@ def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
         print('Splitting into train/test sets...')
         train_df, test_df = split(df, test_split, shuffle)
 
-        print('Saving training data locally...')
-        train_df.to_csv(path.join(data_path, 'train.csv'))
+        if len(train_df) > 0:
 
-        print('Saving test data locally...')
-        test_df.to_csv(path.join(data_path, 'test.csv'))
+            print('Saving training data locally...')
+            train_df.to_csv(path.join(data_path, 'train.csv'))
+
+        if len(test_df) > 0:
+
+            print('Saving test data locally...')
+            test_df.to_csv(path.join(data_path, 'test.csv'))
 
         if job_dir.startswith('gs://'):
 
