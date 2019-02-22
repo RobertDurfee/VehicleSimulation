@@ -26,7 +26,7 @@ def extract(zip_file, out_dir):
         zip_file.extractall(out_dir)
 
 
-def load(data_dir, in_features, out_features, missing_action='drop'):
+def load(data_dir, in_features, out_features, missing_action='drop', look_back=1):
     """Load all TSVs from ANL D3 extracted data file. Select only the
     necessary features.
 
@@ -38,6 +38,8 @@ def load(data_dir, in_features, out_features, missing_action='drop'):
             - 'drop': Skip data files with missing columns (if few
                 missing columns expected).
             - 'null': Fill the missing columns with NaN.
+        look_back (int): Number of samples to look back for variables included as
+            both inputs and outputs.
 
     Returns:
         DataFrame: All files concatenated containing selected features.
@@ -74,15 +76,22 @@ def load(data_dir, in_features, out_features, missing_action='drop'):
         df.columns = pd.MultiIndex.from_tuples(multi_index_tuples)
 
         # Shift targets
-        df['Target'] = df['Target'].shift(-1)
+        df['Target'] = df['Target'].shift(-look_back)
 
         # Shift inputs which are not also used as outputs
         in_features_shift = filter(lambda in_feature: in_feature not in out_features, in_features)
         in_features_shift = [('Input', in_feature_shift) for in_feature_shift in in_features_shift]
-        df[in_features_shift] = df[in_features_shift].shift(-1)
+        df[in_features_shift] = df[in_features_shift].shift(-look_back)
 
-        # Remove the last value which will have NaN values
-        df = df[:-1]
+        # Shift inputs which are also used as outputs
+        in_out_features = filter(lambda in_out_feature: in_out_feature in out_features, in_features)
+        for in_out_feature in in_out_features:
+            for i in range(1, look_back + 1):
+                df[('Input', in_out_feature + str(i))] = df[('Input', in_out_feature)].shift(-(look_back - i))
+            df = df.drop(columns=[('Input', in_out_feature)])
+
+        # Remove the last `look_back` values which will have NaN values
+        df = df[:-look_back]
 
         # Set the index to be the TestID taken from file name (or guid if
         # unknown file name pattern)
@@ -130,7 +139,7 @@ def split(df, test_frac=0.1, shuffle=True):
 
 
 def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
-         test_split=0.10, shuffle=True):
+         look_back=1, test_split=0.10, shuffle=True):
     """Preprocess ANL D3 data files. Extract zipped files, load requested
     features, split into train and test splits, and save all data.
 
@@ -143,6 +152,8 @@ def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
             - 'drop': Skip data files with missing columns (if few
                 missing columns expected).
             - 'null': Fill the missing columns with NaN.
+        look_back (int): Number of samples to look back for variables included as
+            both inputs and outputs.
         test_split (float): Percent of data to withold for testing.
         shuffle (bool): Whether to shuffle the data before splitting or not.
 
@@ -153,7 +164,7 @@ def main(data_zip, job_dir, in_features, out_features, missing_action='drop',
         extract(data_zip, temporary_directory)
 
         print('Extracting features...')
-        df = load(temporary_directory, in_features, out_features, missing_action)
+        df = load(temporary_directory, in_features, out_features, missing_action, look_back)
 
         # If the `job_dir` is on GCS, save everything to temporary folder and
         # upload at the end.
@@ -232,6 +243,11 @@ if __name__ == '__main__':
         type=str,
         default='drop',
         help='What to do if column missing. Can be \'null\' or \'drop\'. \'null\' will fill column with \'NaN\'. \'drop\' will drop the data set with the missing column.')
+    parser.add_argument(
+        '--look-back',
+        type=int,
+        default=1,
+        help='Number of samples to look back for variables included as both inputs and outputs.')
     parser.add_argument(
         '--test-split',
         type=float,

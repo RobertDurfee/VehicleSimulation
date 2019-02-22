@@ -29,7 +29,7 @@ class TestLoadSharedComplete(TestCase):
                 21.2, 22.2, 23.2, 24.2, 25.2,
                 31.2, 32.2, 33.2, 34.2
             ],
-            ('Input', 'FeatureC'): [
+            ('Input', 'FeatureC1'): [
                 10.3, 11.3,
                 20.3, 21.3, 22.3, 23.3, 24.3,
                 30.3, 31.3, 32.3, 33.3
@@ -93,7 +93,7 @@ class TestLoadSharedComplete(TestCase):
 
         df = load(self.data_dir, self.in_features, self.out_features)
 
-        self.assertEqual(df.shape, (sum(self.sequence_lengths), sum([len(self.in_features), len(self.out_features)])))
+        self.assertEqual(df.shape, (sum(self.sequence_lengths), sum([len([feature[1] for feature in self.feature_values if feature[0] == 'Input']), len(self.out_features)])))
 
     def test_columns(self):
 
@@ -103,12 +103,126 @@ class TestLoadSharedComplete(TestCase):
         self.assertTrue('Target' in df)
 
         self.assertEqual(df.index.name, 'Test_ID[]')
-        self.assertEqual(list(df['Input'].columns), self.in_features)
-        self.assertEqual(list(df['Target'].columns), self.out_features)
+        self.assertEqual(list(df['Input'].columns), [feature[1] for feature in self.feature_values if feature[0] == 'Input'])
+        self.assertEqual(list(df['Target'].columns), [feature[1] for feature in self.feature_values if feature[0] == 'Target'])
 
     def test_values(self):
 
         df = load(self.data_dir, self.in_features, self.out_features)
+
+        self.assertEqual(list(df.index.values), self.index_values)
+        
+        for feature, feature_values in self.feature_values.items():
+            self.assertEqual(list(df[feature].values), feature_values)
+
+
+class TestLoadSharedCompleteLookBack(TestCase):
+
+    def setUp(self):
+
+        self.look_back = 2
+
+        self.in_features = [ 'FeatureA', 'FeatureB', 'FeatureC' ]
+        self.out_features = [ 'FeatureD', 'FeatureC' ]
+
+        self.sequence_lengths = [ 1, 4, 3 ]
+
+        self.feature_values = {
+            ('Input', 'FeatureA'): [
+                12.1,
+                22.1, 23.1, 24.1, 25.1,
+                32.1, 33.1, 34.1
+            ],
+            ('Input', 'FeatureB'): [
+                12.2,
+                22.2, 23.2, 24.2, 25.2,
+                32.2, 33.2, 34.2
+            ],
+            ('Input', 'FeatureC1'): [
+                11.3,
+                21.3, 22.3, 23.3, 24.3,
+                31.3, 32.3, 33.3
+            ],
+            ('Input', 'FeatureC2'): [
+                10.3, 
+                20.3, 21.3, 22.3, 23.3,
+                30.3, 31.3, 32.3
+            ],
+            ('Target', 'FeatureD'): [
+                12.4,
+                22.4, 23.4, 24.4, 25.4,
+                32.4, 33.4, 34.4
+            ],
+            ('Target', 'FeatureC'): [
+                12.3,
+                22.3, 23.3, 24.3, 25.3,
+                32.3, 33.3, 34.3
+            ]
+        }
+        
+        self.index_values = [
+            '61700001',
+            '61700002', '61700002', '61700002', '61700002',
+            '61700003', '61700003', '61700003'
+        ]
+
+
+        self.data_lines_dict = {
+            '61700001': [
+                'FeatureA\tFeatureB\tFeatureC\tFeatureD\tFeatureE\n',
+                '10.1\t10.2\t10.3\t10.4\t10.5\n',
+                '11.1\t11.2\t11.3\t11.4\t11.5\n',
+                '12.1\t12.2\t12.3\t12.4\t12.5\n'
+            ],
+            '61700002': [
+                'FeatureA\tFeatureB\tFeatureC\tFeatureD\tFeatureE\n',
+                '20.1\t20.2\t20.3\t20.4\t20.5\n',
+                '21.1\t21.2\t21.3\t21.4\t21.5\n',
+                '22.1\t22.2\t22.3\t22.4\t22.5\n',
+                '23.1\t23.2\t23.3\t23.4\t23.5\n',
+                '24.1\t24.2\t24.3\t24.4\t24.5\n',
+                '25.1\t25.2\t25.3\t25.4\t25.5\n'
+            ],
+            '61700003': [
+                'FeatureA\tFeatureB\tFeatureC\tFeatureD\tFeatureE\n',
+                '30.1\t30.2\t30.3\t30.4\t30.5\n',
+                '31.1\t31.2\t31.3\t31.4\t31.5\n',
+                '32.1\t32.2\t32.3\t32.4\t32.5\n',
+                '33.1\t33.2\t33.3\t33.4\t33.5\n',
+                '34.1\t34.2\t34.3\t34.4\t34.5\n',
+            ]
+        }
+
+        self.data_dir = mkdtemp()
+
+        for test_id, data_lines in self.data_lines_dict.items():
+
+            with open(path.join(self.data_dir, test_id + ' Test Data.txt'), 'w') as test_data_file:
+                test_data_file.writelines(data_lines)
+
+    def tearDown(self):
+        rmtree(self.data_dir)
+    
+    def test_shape(self):
+
+        df = load(self.data_dir, self.in_features, self.out_features, look_back=self.look_back)
+
+        self.assertEqual(df.shape, (sum(self.sequence_lengths), sum([len([feature[1] for feature in self.feature_values if feature[0] == 'Input']), len([feature[1] for feature in self.feature_values if feature[0] == 'Target'])])))
+
+    def test_columns(self):
+
+        df = load(self.data_dir, self.in_features, self.out_features, look_back=self.look_back)
+
+        self.assertTrue('Input' in df)
+        self.assertTrue('Target' in df)
+
+        self.assertEqual(df.index.name, 'Test_ID[]')
+        self.assertEqual(list(df['Input'].columns), [feature[1] for feature in self.feature_values if feature[0] == 'Input'])
+        self.assertEqual(list(df['Target'].columns), [feature[1] for feature in self.feature_values if feature[0] == 'Target'])
+
+    def test_values(self):
+
+        df = load(self.data_dir, self.in_features, self.out_features, look_back=self.look_back)
 
         self.assertEqual(list(df.index.values), self.index_values)
         
@@ -134,7 +248,7 @@ class TestLoadSharedIncompleteDrop(TestCase):
                 11.2, 12.2,
                 31.2, 32.2, 33.2, 34.2
             ],
-            ('Input', 'FeatureC'): [
+            ('Input', 'FeatureC1'): [
                 10.3, 11.3,
                 30.3, 31.3, 32.3, 33.3
             ],
@@ -194,7 +308,7 @@ class TestLoadSharedIncompleteDrop(TestCase):
 
         df = load(self.data_dir, self.in_features, self.out_features, missing_action='drop')
 
-        self.assertEqual(df.shape, (sum(self.sequence_lengths), sum([len(self.in_features), len(self.out_features)])))
+        self.assertEqual(df.shape, (sum(self.sequence_lengths), sum([len([feature[1] for feature in self.feature_values if feature[0] == 'Input']), len([feature[1] for feature in self.feature_values if feature[0] == 'Target'])])))
 
     def test_columns(self):
 
@@ -204,8 +318,8 @@ class TestLoadSharedIncompleteDrop(TestCase):
         self.assertTrue('Target' in df)
 
         self.assertEqual(df.index.name, 'Test_ID[]')
-        self.assertEqual(list(df['Input'].columns), self.in_features)
-        self.assertEqual(list(df['Target'].columns), self.out_features)
+        self.assertEqual(list(df['Input'].columns), [feature[1] for feature in self.feature_values if feature[0] == 'Input'])
+        self.assertEqual(list(df['Target'].columns), [feature[1] for feature in self.feature_values if feature[0] == 'Target'])
 
     def test_values(self):
 
@@ -237,7 +351,7 @@ class TestLoadSharedIncompleteNull(TestCase):
                 np.nan, np.nan, np.nan, np.nan, np.nan,
                 31.2, 32.2, 33.2, 34.2
             ],
-            ('Input', 'FeatureC'): [
+            ('Input', 'FeatureC1'): [
                 10.3, 11.3,
                 20.3, 21.3, 22.3, 23.3, 24.3,
                 30.3, 31.3, 32.3, 33.3
@@ -301,7 +415,7 @@ class TestLoadSharedIncompleteNull(TestCase):
 
         df = load(self.data_dir, self.in_features, self.out_features, missing_action='null')
 
-        self.assertEqual(df.shape, (sum(self.sequence_lengths), sum([len(self.in_features), len(self.out_features)])))
+        self.assertEqual(df.shape, (sum(self.sequence_lengths), sum([len([feature[1] for feature in self.feature_values if feature[0] == 'Input']), len([feature[1] for feature in self.feature_values if feature[0] == 'Target'])])))
 
     def test_columns(self):
 
@@ -311,8 +425,8 @@ class TestLoadSharedIncompleteNull(TestCase):
         self.assertTrue('Target' in df)
 
         self.assertEqual(df.index.name, 'Test_ID[]')
-        self.assertEqual(list(df['Input'].columns), self.in_features)
-        self.assertEqual(list(df['Target'].columns), self.out_features)
+        self.assertEqual(list(df['Input'].columns), [feature[1] for feature in self.feature_values if feature[0] == 'Input'])
+        self.assertEqual(list(df['Target'].columns), [feature[1] for feature in self.feature_values if feature[0] == 'Target'])
 
     def test_values(self):
 
