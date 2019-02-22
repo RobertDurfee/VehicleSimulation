@@ -153,6 +153,92 @@ class TestScale(TestCase):
         self.assertEqual(feature_maxs, self.feature_maxs)
 
 
+class TestScalePadding(TestCase):
+
+    def setUp(self):
+
+        self.n_samples = 1
+        self.max_timesteps = 4
+        self.max_timesteps_padded = 7
+        self.features = 2
+        self.pad_old = -1.
+        self.pad_new = -100.
+
+        self.X = np.array([[[ 6.,  8.],
+                            [ 3.,  5.],
+                            [ 0.,  2.],
+                            [ 4.,  0.],
+                            [-1., -1.],
+                            [-1., -1.],
+                            [-1., -1.]]])
+
+        self.feature_mins = [ 0.,  0.]
+        self.feature_maxs = [ 6.,  8.]
+
+    def test_no_side_effects(self):
+
+        X_copy = self.X.copy()
+        _ = scale(self.X, pad_old=self.pad_old)
+
+        self.assertTrue(np.allclose(self.X, X_copy))
+
+    def test_shape(self):
+
+        X_scale, _, _ = scale(self.X, pad_old=self.pad_old)
+
+        self.assertEqual(X_scale.shape, (self.n_samples, self.max_timesteps_padded, self.features))
+
+    def test_default_min(self):
+
+        X_scale, _, _ = scale(self.X, pad_old=self.pad_old)
+
+        self.assertEqual(X_scale[:, :self.max_timesteps, :].min(), 0.)
+
+    def test_default_max(self):
+
+        X_scale, _, _ = scale(self.X, pad_old=self.pad_old)
+
+        self.assertEqual(X_scale[:, :self.max_timesteps, :].max(), 1.)
+
+    def test_custom_min(self):
+
+        min = -1.
+        X_scale, _, _ = scale(self.X, min=min, pad_old=self.pad_old)
+
+        self.assertEqual(X_scale[:, :self.max_timesteps, :].min(), min)
+
+    def test_custom_max(self):
+
+        max = 5.
+        X_scale, _, _ = scale(self.X, max=max, pad_old=self.pad_old)
+
+        self.assertEqual(X_scale[:, :self.max_timesteps, :].max(), max)
+
+    def test_feature_mins(self):
+
+        _, feature_mins, _ = scale(self.X, pad_old=self.pad_old)
+
+        self.assertEqual(feature_mins, self.feature_mins)
+
+    def test_feature_maxs(self):
+
+        _, _, feature_maxs = scale(self.X, pad_old=self.pad_old)
+
+        self.assertEqual(feature_maxs, self.feature_maxs)
+    
+    def test_old_pad_values(self):
+
+        X_scale, _, _ = scale(self.X, pad_old=self.pad_old)
+
+        self.assertTrue(np.allclose(X_scale[:, self.max_timesteps:, :], self.X[:, self.max_timesteps:, :]))
+
+    def test_new_pad_values(self):
+
+        X_scale, _, _ = scale(self.X, pad_old=self.pad_old, pad_new=self.pad_new)
+
+        self.assertTrue(np.allclose(X_scale[:, self.max_timesteps:, :], np.full((self.X.shape[0], self.max_timesteps_padded - self.max_timesteps, self.X.shape[2]), self.pad_new)))
+
+
 class TestLoadData(TestCase):
 
     def setUp(self):

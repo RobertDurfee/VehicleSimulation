@@ -87,7 +87,7 @@ def pad(X, batch_size, pad_val=-1.):
     return X_pad
 
 
-def scale(X, min=0., max=1.):
+def scale(X, min=0., max=1., pad_old=None, pad_new=None):
     """Scale sequence data into a specified range.
 
     Args:
@@ -95,11 +95,15 @@ def scale(X, min=0., max=1.):
             features).
         min (float): New minimum for data.
         max (float): New maximum for data.
+        pad_old (float): A value to consider as existing padding
+            which should not be scaled.
+        pad_new (float): Replace the old padding with this new value.
+            Essentially a controlled padding.
 
     Return:
         ndarray: Scaled data in range [min, max].
-        list of float: The original data minimums for each feature.
-        list of float: The original data maximums for each feature.
+        list of float: The original data minimums for each feature (ignoring padding).
+        list of float: The original data maximums for each feature (ignoring padding).
 
     """
     n_samples, max_timesteps, features = X.shape
@@ -111,9 +115,22 @@ def scale(X, min=0., max=1.):
 
     for k in range(features):
 
-        mins.append(X[:, :, k].min())
-        maxs.append(X[:, :, k].max())
+        # No values to ignore
+        if pad_old is None:
 
+            mins.append(X[:, :, k].min())
+            maxs.append(X[:, :, k].max())
+        
+        # Ignore pad values
+        else:
+
+            mins.append(X[:, :, k][X[:, :, k] != pad_old].min())
+            maxs.append(X[:, :, k][X[:, :, k] != pad_old].max())
+        
+        # Scale all values
         X_std[:, :, k] += ((X[:, :, k] - mins[k]) / (maxs[k] - mins[k])) * (max - min) + min
+
+        # Reset padded values to the old or new pad value
+        X_std[:, :, k][X[:, :, k] == pad_old] = pad_old if pad_new is None else pad_new
 
     return X_std, mins, maxs
