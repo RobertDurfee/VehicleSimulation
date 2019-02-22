@@ -4,3 +4,4 @@ __pycache__
 rl_traffic_intersections_sa.json
 *.zip
 *.pyc
+.DS_Store
