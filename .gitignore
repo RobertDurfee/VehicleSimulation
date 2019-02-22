@@ -3,3 +3,4 @@ __pycache__
 .vscode
 rl_traffic_intersections_sa.json
 *.zip
+*.pyc
