@@ -264,8 +264,12 @@ def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, n_look_back_feat
         Y_train (ndarray): Training targets (n_samples, max_timesteps, features).
         X_test (ndarray): Test inputs (n_samples, max_timesteps, features).
         Y_test (ndarray): Test targets (n_samples, max_timesteps, features).
-        n_look_back_features (int):
-        look_back_length (int):
+        n_look_back_features (int): Number of output features used as
+            input features. By default, no look back is assumed and
+            batch evaluation is used.
+        look_back_length (int): Number of historical prediction outputs
+            to be used as inputs. By default, no look back is assumed
+            and batch evaluation is used.
         job_dir (str): Directory to save model checkpoints and scores.
         train_batch_size (int): Timestep batch size for training steps.
         eval_batch_size (int): Timestep batch size for test steps.
