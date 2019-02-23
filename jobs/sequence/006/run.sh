@@ -4,7 +4,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="/afs/athena.mit.edu/user/r/b/rbdurfee/Doc
 
 # Preprocess the data
 python3 -m sequence.data.preprocess                                            \
-  --job-dir gs://vehicle-simulation/jobs/sequence/005                          \
+  --job-dir gs://vehicle-simulation/jobs/sequence/006                          \
   --data-zip /Users/rbdurfee/Downloads/2017_ford_f150_ecoboost.zip             \
   --in-features Pedal_accel_pos_CAN[per]                                       \
                 Brake_pressure_applied_PCM[]                                   \
@@ -15,22 +15,22 @@ python3 -m sequence.data.preprocess                                            \
   --shuffle
 
 # Start a remote training job with single instance
-gcloud ml-engine jobs submit training vehicle_simulation_sequence_005_0        \
+gcloud ml-engine jobs submit training vehicle_simulation_sequence_006_0        \
   --region us-central1                                                         \
   --scale-tier STANDARD_1                                                      \
   --runtime-version 1.12                                                       \
   --python-version 3.5                                                         \
   --module-name sequence.trainer.train                                         \
   --package-path sequence/sequence/                                            \
-  --job-dir gs://vehicle-simulation/jobs/sequence/005                          \
+  --job-dir gs://vehicle-simulation/jobs/sequence/006                          \
   --                                                                           \
-  --train-file gs://vehicle-simulation/jobs/sequence/005/data/train.csv        \
-  --eval-file gs://vehicle-simulation/jobs/sequence/005/data/test.csv          \
+  --train-file gs://vehicle-simulation/jobs/sequence/006/data/train.csv        \
+  --eval-file gs://vehicle-simulation/jobs/sequence/006/data/test.csv          \
   --first-layer-size 200                                                       \
   --num-layers 4                                                               \
   --scale-factor 0.5                                                           \
   --hidden-layer LSTM                                                          \
-  --hidden-activation relu                                                     \
+  --hidden-activation tanh                                                     \
   --output-activation linear                                                   \
   --hidden-dropout 0.4                                                         \
   --optimizer RMSprop                                                          \
