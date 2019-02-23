@@ -80,16 +80,16 @@ class Evaluate(Callback):
         """
         if (epoch + 1) % self.frequency == 0:
 
-            # Create the evaluation model from existing model with new input shape
-            n_samples, _, in_features = self.X.shape
-            eval_model = copy_compile_model(self.model, (n_samples, 1, in_features))
-
             # Evaluate the model
             print('Evaluating')
 
             # If there are look back features, we have to wait for the output for each 
             # timestep, hence the outer loop is required.
             if self.n_look_back_features > 0:
+
+                # Create the evaluation model from existing model with new input shape
+                n_samples, _, in_features = self.X.shape
+                eval_model = copy_compile_model(self.model, (n_samples, 1, in_features))
 
                 Y_pred = numpy.zeros(self.Y.shape)
                 Y_pred_hist = numpy.zeros((self.Y.shape[0], self.look_back_length, self.Y.shape[2]))
@@ -108,6 +108,10 @@ class Evaluate(Callback):
             # If there are no look back features, batch estimation is possible and
             # no outer loop is necessary.
             else:
+
+                # Create the evaluation model from existing model with new input shape
+                n_samples, _, in_features = self.X.shape
+                eval_model = copy_compile_model(self.model, (n_samples, self.batch_size, in_features))
 
                 loss = eval_model.evaluate_generator(batch_generator(self.X, self.Y, self.batch_size),
                                                      steps=self.epochs * self.steps, verbose=1)
