@@ -86,7 +86,7 @@ def load(data_dir, in_features, out_features, missing_action='drop', look_back=1
         # Shift inputs which are also used as outputs
         in_out_features = filter(lambda in_out_feature: in_out_feature in out_features, in_features)
         for in_out_feature in in_out_features:
-            for i in range(1, look_back + 1):
+            for i in range(look_back, 0, -1):
                 df[('Input', in_out_feature + str(i))] = df[('Input', in_out_feature)].shift(-(look_back - i))
             df = df.drop(columns=[('Input', in_out_feature)])
 
@@ -98,6 +98,9 @@ def load(data_dir, in_features, out_features, missing_action='drop', look_back=1
         match = re.search(r'\d{8}', data_file)
         df['Test_ID[]'] = match.group(0) if match else str(uuid4())
         df.set_index('Test_ID[]', inplace=True)
+
+        # Ensure inputs come before targets
+        df = df[['Input', 'Target']]
 
         dfs.append(df)
 
