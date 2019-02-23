@@ -1,5 +1,5 @@
 from unittest import TestCase
-from sequence.trainer.utils import pad, scale, load_data, deduce_look_back, update_prediction_history
+from sequence.trainer.utils import pad, scale, load_data, deduce_look_back, update_prediction_history, replace_expected_look_back
 from tempfile import mkstemp
 import numpy as np
 import os
@@ -472,3 +472,64 @@ class TestUpdatePredictionHistory(TestCase):
         Y_hist = update_prediction_history(self.Y_hist, self.Y_t)
 
         self.assertTrue(np.allclose(Y_hist, self.Y_hist_updated))
+
+
+class TestReplaceExpectedLookBack(TestCase):
+
+    def setUp(self):
+
+        self.X_t = np.array([[[111, 112.1, 112.2, 112.3, 113.1, 113.2, 113.3]],
+
+                             [[211, 212.1, 212.2, 212.3, 213.1, 213.2, 213.3]],
+                       
+                             [[311, 312.1, 312.2, 312.3, 313.1, 313.2, 313.3]],
+                       
+                             [[411, 412.1, 412.2, 412.3, 413.1, 413.2, 413.3]]])
+
+        self.Y_hist = np.array([[[111, 112, 113],
+                                 [121, 122, 123],
+                                 [131, 132, 133]],
+                          
+                                [[211, 212, 213],
+                                 [221, 222, 223],
+                                 [231, 232, 233]],
+                          
+                                [[311, 312, 313],
+                                 [321, 322, 323],
+                                 [331, 332, 333]],
+                          
+                                [[411, 412, 413],
+                                 [421, 422, 423],
+                                 [431, 432, 433]]])
+        
+        self.X_t_updated = np.array([[[111, 112, 122, 132, 113, 123, 133]],
+
+                                     [[211, 212, 222, 232, 213, 223, 233]],
+                                
+                                     [[311, 312, 322, 332, 313, 323, 333]],
+                                
+                                     [[411, 412, 422, 432, 413, 423, 433]]]) 
+
+        self.n_look_back_features = 2
+    
+    def test_no_side_effects(self):
+
+        X_t_copy = self.X_t.copy()
+        Y_hist_copy = self.Y_hist.copy()
+
+        _ = replace_expected_look_back(self.X_t, self.Y_hist, self.n_look_back_features)
+
+        self.assertTrue(np.allclose(self.X_t, X_t_copy))
+        self.assertTrue(np.allclose(self.Y_hist, Y_hist_copy))
+
+    def test_shape(self):
+
+        X_t = replace_expected_look_back(self.X_t, self.Y_hist, self.n_look_back_features)
+
+        self.assertEqual(X_t.shape, self.X_t_updated.shape)
+    
+    def test_values(self):
+
+        X_t = replace_expected_look_back(self.X_t, self.Y_hist, self.n_look_back_features)
+
+        self.assertTrue(np.allclose(X_t, self.X_t_updated))

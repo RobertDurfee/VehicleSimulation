@@ -207,3 +207,46 @@ def update_prediction_history(Y_hist, Y_t):
     Y_hist[:, -1:, :] = Y_t
 
     return Y_hist
+
+
+def replace_expected_look_back(X_t, Y_hist, n_look_back_features):
+    """For the given X input, replace the expected look back values
+    with the actual, observed values from prediction history.
+    
+    Args:
+        X_t (ndarray): Current input with dimensions (n_samples, 1,
+            in_features) to replace expected look back.
+        Y_hist (ndarray): Past predictions with dimensions (n_samples,
+            look_back_length, out_features) to use for look back.
+        n_look_back_features (int): Number of features used for look
+            back. These features are taken from the last elements
+            of Y_hist.
+    
+    Returns:
+        ndarray: New X_t with the appropriate expected look back values
+            replaced with actual look backs.
+            
+    """
+    look_back_length = Y_hist.shape[1]
+    
+    # Take only the look back features from previous predictions.
+    look_back_vals = Y_hist[:, :, -n_look_back_features:]
+    
+    # Swap timesteps axis with features axis so the reshaping
+    # works out correctly.
+    look_back_vals = np.swapaxes(look_back_vals, 1, 2)
+    
+    # Flatten feature and timestep axes. The resulting shape
+    # will be (n_samples, 1, features * timesteps). The format for
+    # each sample is f1_t1, f1_t2, f1_t3, ..., f2_t1, f2_t2, 
+    # f2_t2, ... and so on. The most recent output is the last
+    # timestep for each feature.
+    look_back_vals = look_back_vals.reshape(look_back_vals.shape[0], 1, -1)
+    
+    # Copy X_t to avoid sideffects
+    X_t = X_t.copy()
+    
+    # Replace *expected* look back features with actual
+    X_t[:, :, -(n_look_back_features * look_back_length):] = look_back_vals
+    
+    return X_t 
