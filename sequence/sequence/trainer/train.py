@@ -1,27 +1,39 @@
 import argparse
 from sequence.trainer.model import create_model, compile_model, batch_generator, copy_compile_model
-from sequence.trainer.utils import load_data, scale, pad
+from sequence.trainer.utils import load_data, scale, pad, deduce_look_back, replace_expected_look_back, update_prediction_history
 from keras.callbacks import Callback, TensorBoard
+import keras.backend as backend
+import keras.losses as losses
 from math import ceil
 from os import path, makedirs, remove
 from shutil import rmtree
 from tempfile import mkdtemp
 from sequence.utils import copy_to_gcs
+import numpy
 
 
 class Evaluate(Callback):
 
-    def __init__(self, filepath, X, Y, batch_size=100, epochs=1, steps=None, frequency=5):
+    def __init__(self, filepath, X, Y, n_look_back_features=0, look_back_length=None, 
+                 batch_size=100, epochs=1, steps=None, frequency=5):
         """Initialize callback for continuous evaluation.
         
         Args:
             filepath (str): Local or remote file name for evaluation summary.
             X (ndarray): Test inputs (n_samples, max_timesteps, features).
             Y (ndarray): Test targets (n_samples, max_timesteps, features).
-            batch_size (int): Timestep batch size for test steps.
+            n_look_back_features (int): Number of output features used as
+                input features. By default, no look back is assumed and
+                batch evaluation is used.
+            look_back_length (int): Number of historical prediction outputs
+                to be used as inputs. By default, no look back is assumed
+                and batch evaluation is used.
+            batch_size (int): Timestep batch size for test steps. If look back
+                is provided, this is ignored.
             epochs (int): Number of epochs to evaluate.
             steps (int): Number of evaluation steps per epoch. If `None`,
-                ceil(max_timesteps / batch_size).
+                ceil(max_timesteps / batch_size). If look back is provided,
+                this is ignored.
             frequency (int): Perform one evaluation every N epochs.
 
         """
@@ -34,6 +46,8 @@ class Evaluate(Callback):
 
         self.X = X
         self.Y = Y
+        self.n_look_back_features = n_look_back_features
+        self.look_back_length = look_back_length
         self.batch_size = batch_size
         self.epochs = epochs
         if steps is None:
@@ -68,12 +82,35 @@ class Evaluate(Callback):
 
             # Create the evaluation model from existing model with new input shape
             n_samples, _, in_features = self.X.shape
-            eval_model = copy_compile_model(self.model, (n_samples, self.batch_size, in_features))
+            eval_model = copy_compile_model(self.model, (n_samples, 1, in_features))
 
             # Evaluate the model
             print('Evaluating')
-            loss = eval_model.evaluate_generator(batch_generator(self.X, self.Y, self.batch_size),
-                                                 steps=self.epochs*self.steps, verbose=1)
+
+            # If there are look back features, we have to wait for the output for each 
+            # timestep, hence the outer loop is required.
+            if self.n_look_back_features > 0:
+
+                Y_pred = numpy.zeros(self.Y.shape)
+                Y_pred_hist = numpy.zeros((self.Y.shape[0], self.look_back_length, self.Y.shape[2]))
+
+                for t in range(self.X.shape[1]):
+
+                    X_t = replace_expected_look_back(self.X[:, t:t + 1, :], Y_pred_hist, self.n_look_back_features)
+
+                    Y_pred[:, t:t + 1, :] = eval_model.predict(X_t)
+
+                    Y_pred_hist = update_prediction_history(Y_pred_hist, Y_pred[:, t:t + 1, :])
+                
+                # Compute the loss manually.
+                loss = numpy.mean(backend.eval(losses.get(eval_model.loss)(self.Y, Y_pred)))
+            
+            # If there are no look back features, batch estimation is possible and
+            # no outer loop is necessary.
+            else:
+
+                loss = eval_model.evaluate_generator(batch_generator(self.X, self.Y, self.batch_size),
+                                                     steps=self.epochs * self.steps, verbose=1)
             
             # Record metric
             with open(path.join(self.dirname, self.filename), 'a') as eval_summary:
@@ -209,10 +246,10 @@ class CSVLogger(Callback):
             rmtree(self.dirname)
 
 
-def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
-                       train_batch_size=100, eval_batch_size=100,
-                       train_epochs=200, eval_epochs=1, train_steps=None,
-                       eval_steps=None, eval_frequency=5,
+def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, n_look_back_features,
+                       look_back_length, job_dir, train_batch_size=100,
+                       eval_batch_size=100, train_epochs=200, eval_epochs=1,
+                       train_steps=None, eval_steps=None, eval_frequency=5,
                        checkpoint_frequency=5):
     """Train an existing model with specified training data. Continuously
     evaluate model, save model, and log epoch results.
@@ -223,6 +260,8 @@ def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
         Y_train (ndarray): Training targets (n_samples, max_timesteps, features).
         X_test (ndarray): Test inputs (n_samples, max_timesteps, features).
         Y_test (ndarray): Test targets (n_samples, max_timesteps, features).
+        n_look_back_features (int):
+        look_back_length (int):
         job_dir (str): Directory to save model checkpoints and scores.
         train_batch_size (int): Timestep batch size for training steps.
         eval_batch_size (int): Timestep batch size for test steps.
@@ -248,6 +287,7 @@ def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, job_dir,
         makedirs(path.join(job_dir, 'logs'), exist_ok=True)
     eval_summary_filename = path.join(job_dir, 'logs', 'evaluation_results.csv')
     evaluate_callback = Evaluate(eval_summary_filename, X_test, Y_test,
+                                 n_look_back_features, look_back_length,
                                  eval_batch_size, eval_epochs, eval_steps,
                                  eval_frequency)
 
@@ -299,7 +339,7 @@ def main(job_dir, train_file, eval_file, first_layer_size=256, num_layers=1,
 
     """
     # Load training data
-    X_train, _, Y_train, _ = load_data(train_file, pad_val=-1.)
+    X_train, in_features, Y_train, out_features = load_data(train_file, pad_val=-1.)
 
     X_train_padded = pad(X_train, train_batch_size, pad_val=-1.)
     Y_train_padded = pad(Y_train, train_batch_size, pad_val=-1.)
@@ -317,23 +357,26 @@ def main(job_dir, train_file, eval_file, first_layer_size=256, num_layers=1,
     Y_test_scaled, _, _ = scale(Y_test_padded, min=0., max=1., pad_old=-1.)
 
     # Configure model
-    n_train_samples, _, in_features = X_train_scaled.shape
-    n_train_samples, _, out_features = Y_train_scaled.shape
+    n_train_samples, _, n_in_features = X_train_scaled.shape
+    n_train_samples, _, n_out_features = Y_train_scaled.shape
 
     hidden_units = [max(1, int(first_layer_size * scale_factor ** i)) for i in range(num_layers)]
 
-    model = create_model(batch_input_shape=(n_train_samples, train_batch_size, in_features), 
+    model = create_model(batch_input_shape=(n_train_samples, train_batch_size, n_in_features), 
                          hidden_units=hidden_units,
-                         target_dim=(n_train_samples, train_batch_size, out_features))
+                         target_dim=(n_train_samples, train_batch_size, n_out_features))
     
     compile_model(model, optimizer, learning_rate, loss)
 
+    # Determine look back properties
+    n_look_back_features, look_back_length = deduce_look_back(in_features, out_features)
+
     # Start train/evaluate loop
     train_and_evaluate(model, X_train_scaled, Y_train_scaled, X_test_scaled,
-                       Y_test_scaled, job_dir, train_batch_size,
-                       eval_batch_size, train_epochs, eval_epochs,
-                       train_steps, eval_steps, eval_frequency,
-                       checkpoint_frequency)
+                       Y_test_scaled, n_look_back_features, look_back_length,
+                       job_dir, train_batch_size, eval_batch_size,
+                       train_epochs, eval_epochs, train_steps, eval_steps,
+                       eval_frequency, checkpoint_frequency)
 
 
 if __name__ == '__main__':
@@ -395,7 +438,7 @@ if __name__ == '__main__':
         '--eval-batch-size',
         type=int,
         default=100,
-        help='Timestep batch size for test steps.')
+        help='Timestep batch size for test steps. If look back inputs are used, this is ignored.')
     parser.add_argument(
         '--train-epochs',
         type=int,
@@ -415,7 +458,7 @@ if __name__ == '__main__':
         '--eval-steps',
         type=int,
         default=None,
-        help='Number of evaluation steps per epoch. If `None`, ceil(eval_max_timesteps / eval_batch_size).')
+        help='Number of evaluation steps per epoch. If `None`, ceil(eval_max_timesteps / eval_batch_size). If look back inputs are used, this is ignored.')
     parser.add_argument(
         '--eval-frequency',
         type=int,
