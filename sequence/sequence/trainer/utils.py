@@ -154,7 +154,7 @@ def deduce_look_back(in_features, target_features):
 
         for in_feature in in_features:
 
-            if re.match(target_feature + r'\d+$', in_feature):
+            if re.match(re.escape(target_feature) + r'\d+$', in_feature):
                 return True
         
         return False
@@ -172,7 +172,7 @@ def deduce_look_back(in_features, target_features):
 
         for in_feature in in_features:
 
-            if re.match(shared_feature + r'\d+$', in_feature):
+            if re.match(re.escape(shared_feature) + r'\d+$', in_feature):
                 look_backs[-1] += 1
     
     if look_backs.count(look_backs[0]) != len(look_backs):
