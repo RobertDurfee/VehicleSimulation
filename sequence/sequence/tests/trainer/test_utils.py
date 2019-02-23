@@ -1,5 +1,5 @@
 from unittest import TestCase
-from sequence.trainer.utils import pad, scale, load_data
+from sequence.trainer.utils import pad, scale, load_data, deduce_look_back
 from tempfile import mkstemp
 import numpy as np
 import os
@@ -371,3 +371,28 @@ class TestLoadData(TestCase):
 
         self.assertEqual(input_features, self.input_feature_names)
         self.assertEqual(target_features, self.target_feature_names)
+
+
+class TestDeduceLookBack(TestCase):
+
+    def test_is_none(self):
+
+        in_features = [ 'A', 'B', 'C' ]
+        target_features = [ 'D', 'E', 'F' ]
+
+        self.assertIsNone(deduce_look_back(in_features, target_features))
+
+    def test_is_correct_value(self):
+
+        look_back = 4
+        in_features = [ 'A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4' ]
+        target_features = [ 'A', 'B' ]
+
+        self.assertEqual(deduce_look_back(in_features, target_features), look_back)
+    
+    def test_raises_value_error(self):
+
+        in_features = [ 'A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3' ]
+        target_features = [ 'A', 'B' ]
+
+        self.assertRaises(ValueError, lambda: deduce_look_back(in_features, target_features))

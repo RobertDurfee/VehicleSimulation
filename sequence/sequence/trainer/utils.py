@@ -136,3 +136,45 @@ def scale(X, min=0., max=1., pad_old=None, pad_new=None):
         X_std[:, :, k][X[:, :, k] == pad_old] = pad_old if pad_new is None else pad_new
 
     return X_std, mins, maxs
+
+
+def deduce_look_back(in_features, target_features):
+    """From the feature names, determine how large of a look back is used.
+
+    Args:
+        in_features (list of str): Names of input features
+        target_features (list of str): Names of target features.
+    
+    Returns:
+        int: Look back value.
+    
+    """
+    def is_shared(target_feature):
+
+        for in_feature in in_features:
+
+            if re.match(target_feature + r'\d+$', in_feature):
+                return True
+        
+        return False
+
+    shared_features = list(filter(is_shared, target_features))
+
+    if len(shared_features) == 0:
+        return None
+
+    look_backs = []
+
+    for shared_feature in shared_features:
+
+        look_backs.append(0)
+
+        for in_feature in in_features:
+
+            if re.match(shared_feature + r'\d+$', in_feature):
+                look_backs[-1] += 1
+    
+    if look_backs.count(look_backs[0]) != len(look_backs):
+        raise ValueError('Inconsistent look back.')
+
+    return look_backs[0]
