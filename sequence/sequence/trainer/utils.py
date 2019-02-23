@@ -146,6 +146,7 @@ def deduce_look_back(in_features, target_features):
         target_features (list of str): Names of target features.
     
     Returns:
+        int: Number of look back features.
         int: Look back value.
     
     """
@@ -161,7 +162,7 @@ def deduce_look_back(in_features, target_features):
     shared_features = list(filter(is_shared, target_features))
 
     if len(shared_features) == 0:
-        return None
+        return 0, None
 
     look_backs = []
 
@@ -177,4 +178,4 @@ def deduce_look_back(in_features, target_features):
     if look_backs.count(look_backs[0]) != len(look_backs):
         raise ValueError('Inconsistent look back.')
 
-    return look_backs[0]
+    return len(look_backs), look_backs[0]

@@ -380,15 +380,16 @@ class TestDeduceLookBack(TestCase):
         in_features = [ 'A', 'B', 'C' ]
         target_features = [ 'D', 'E', 'F' ]
 
-        self.assertIsNone(deduce_look_back(in_features, target_features))
+        self.assertEqual(deduce_look_back(in_features, target_features), (0, None))
 
     def test_is_correct_value(self):
 
+        num_look_back_features = 2
         look_back = 4
         in_features = [ 'A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4' ]
         target_features = [ 'A', 'B' ]
 
-        self.assertEqual(deduce_look_back(in_features, target_features), look_back)
+        self.assertEqual(deduce_look_back(in_features, target_features), (num_look_back_features, look_back))
     
     def test_raises_value_error(self):
 
