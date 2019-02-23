@@ -300,6 +300,9 @@ class TestLoadData(TestCase):
             '61700003,34.1,34.2,33.3,34.4,34.3\n',
         ]
 
+        self.input_feature_names = [ 'FeatureA', 'FeatureB', 'FeatureC' ]
+        self.target_feature_names = [ 'FeatureD', 'FeatureC' ]
+
         data_file, self.data_file_path = mkstemp()
 
         os.write(data_file, bytes(''.join(data_lines), 'ascii'))
@@ -311,14 +314,14 @@ class TestLoadData(TestCase):
     
     def test_shape(self):
 
-        X, Y = load_data(self.data_file_path)
+        X, _, Y, _ = load_data(self.data_file_path)
 
         self.assertEqual(X.shape, (self.n_samples, self.max_timesteps, self.in_features))
         self.assertEqual(Y.shape, (self.n_samples, self.max_timesteps, self.out_features))
 
     def test_values(self):
 
-        X, Y = load_data(self.data_file_path)
+        X, _, Y, _ = load_data(self.data_file_path)
 
         for i in range(self.n_samples):
 
@@ -330,7 +333,7 @@ class TestLoadData(TestCase):
     
     def test_default_pad_val(self):
 
-        X, Y = load_data(self.data_file_path)
+        X, _, Y, _ = load_data(self.data_file_path)
 
         for i in range(self.n_samples):
 
@@ -348,7 +351,7 @@ class TestLoadData(TestCase):
 
         pad_val = -100.
 
-        X, Y = load_data(self.data_file_path, pad_val)
+        X, _, Y, _ = load_data(self.data_file_path, pad_val)
 
         for i in range(self.n_samples):
 
@@ -361,3 +364,10 @@ class TestLoadData(TestCase):
             padding = np.full((self.max_timesteps - timesteps, self.out_features), pad_val)
 
             self.assertTrue(np.allclose(Y[i, timesteps:, :], padding))
+    
+    def test_feature_names(self):
+
+        _, input_features, _, target_features = load_data(self.data_file_path)
+
+        self.assertEqual(input_features, self.input_feature_names)
+        self.assertEqual(target_features, self.target_feature_names)

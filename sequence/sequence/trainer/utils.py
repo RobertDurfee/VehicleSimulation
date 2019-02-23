@@ -20,7 +20,9 @@ def load_data(data_file, pad_val=-1.):
 
     Returns:
         ndarray: Input data of shape (n_samples, max_timesteps, in_features).
+        list of str: Input feature names.
         ndarray: Target data of shape (n_samples, max_timesteps, out_features).
+        list of str: Target feature names.
 
     """
     # Copy remote file from GCS
@@ -57,7 +59,7 @@ def load_data(data_file, pad_val=-1.):
     if data_file.startswith('gs://'):
         rmtree(dirname)
 
-    return X, Y
+    return X, list(df['Input'].columns), Y, list(df['Target'].columns)
 
 
 def pad(X, batch_size, pad_val=-1.):

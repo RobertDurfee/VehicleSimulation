@@ -299,7 +299,7 @@ def main(job_dir, train_file, eval_file, first_layer_size=256, num_layers=1,
 
     """
     # Load training data
-    X_train, Y_train = load_data(train_file, pad_val=-1.)
+    X_train, _, Y_train, _ = load_data(train_file, pad_val=-1.)
 
     X_train_padded = pad(X_train, train_batch_size, pad_val=-1.)
     Y_train_padded = pad(Y_train, train_batch_size, pad_val=-1.)
@@ -308,7 +308,7 @@ def main(job_dir, train_file, eval_file, first_layer_size=256, num_layers=1,
     Y_train_scaled, _, _ = scale(Y_train_padded, min=0., max=1., pad_old=-1.)
 
     # Load evaluation data
-    X_test, Y_test = load_data(eval_file, pad_val=-1.)
+    X_test, _, Y_test, _ = load_data(eval_file, pad_val=-1.)
 
     X_test_padded = pad(X_test, eval_batch_size, pad_val=-1.)
     Y_test_padded = pad(Y_test, eval_batch_size, pad_val=-1.)
