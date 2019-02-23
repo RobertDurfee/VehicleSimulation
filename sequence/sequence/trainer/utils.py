@@ -179,3 +179,31 @@ def deduce_look_back(in_features, target_features):
         raise ValueError('Inconsistent look back.')
 
     return len(look_backs), look_backs[0]
+
+
+def update_prediction_history(Y_hist, Y_t):
+    """Rolls Y_hist values toward the front and then replaces the last
+    element with Y_t.
+    
+    Args:
+        Y_hist (ndarray): Historical predictions with dimensions (n_samples,
+            look_back_length, target_features) where the first element on
+            axis 1 is the oldest look back and the last element is the
+            newest.
+        Y_t (ndarray): New prediction with the dimensions (n_samples, 1,
+            target_features) to be added to history.
+    
+    Returns:
+        ndarray: New historical values with dimensions (n_samples,
+            look_back_length, target_features) with the newest prediction
+            added to the end and the oldest is forgotten.
+            
+    """
+    # Roll the historical predictions such that the oldest is now the last
+    # element.
+    Y_hist = np.roll(Y_hist, -1, axis=1)
+    
+    # Update the last element in historical predictions with the most recent.
+    Y_hist[:, -1:, :] = Y_t
+
+    return Y_hist

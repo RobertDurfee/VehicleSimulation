@@ -1,5 +1,5 @@
 from unittest import TestCase
-from sequence.trainer.utils import pad, scale, load_data, deduce_look_back
+from sequence.trainer.utils import pad, scale, load_data, deduce_look_back, update_prediction_history
 from tempfile import mkstemp
 import numpy as np
 import os
@@ -397,3 +397,78 @@ class TestDeduceLookBack(TestCase):
         target_features = [ 'A', 'B' ]
 
         self.assertRaises(ValueError, lambda: deduce_look_back(in_features, target_features))
+
+
+class TestUpdatePredictionHistory(TestCase):
+
+    def setUp(self):
+
+        self.Y_hist = np.array([[[111, 112],
+                                 [121, 122],
+                                 [131, 132]],
+
+                                [[211, 212],
+                                 [221, 222],
+                                 [231, 232]],
+
+                                [[311, 312],
+                                 [321, 322],
+                                 [331, 332]],
+
+                                [[411, 412],
+                                 [421, 422],
+                                 [431, 432]]])
+
+        self.Y_t = np.array([[[141, 142]],
+
+                             [[241, 242]],
+
+                             [[341, 342]],
+
+                             [[441, 442]]])
+
+        self.Y_hist_updated = np.array([[[121, 122],
+                                         [131, 132],
+                                         [141, 142]],
+          
+                                        [[221, 222],
+                                         [231, 232],
+                                         [241, 242]],
+          
+                                        [[321, 322],
+                                         [331, 332],
+                                         [341, 342]],
+          
+                                        [[421, 422],
+                                         [431, 432],
+                                         [441, 442]]])
+    
+    def test_no_side_effects(self):
+
+        Y_hist_copy = self.Y_hist.copy()
+        Y_t_copy = self.Y_t.copy()
+
+        _ = update_prediction_history(self.Y_hist, self.Y_t)
+
+        self.assertTrue(np.allclose(self.Y_hist, Y_hist_copy))
+        self.assertTrue(np.allclose(self.Y_t, Y_t_copy))
+
+    def test_no_reference(self):
+
+        Y_hist = update_prediction_history(self.Y_hist, self.Y_t)
+
+        Y_hist[0, -1, 0] = -10000.
+
+        self.assertNotEqual(Y_hist[0, -1, 0], self.Y_t[0, 0, 0])
+
+    def test_shape(self):
+    
+        Y_hist = update_prediction_history(self.Y_hist, self.Y_t)
+
+        self.assertEqual(Y_hist.shape, self.Y_hist.shape)
+
+    def test_values(self):
+
+        Y_hist = update_prediction_history(self.Y_hist, self.Y_t)
+
+        self.assertTrue(np.allclose(Y_hist, self.Y_hist_updated))
