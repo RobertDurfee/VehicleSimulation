@@ -316,10 +316,12 @@ def train_and_evaluate(model, X_train, Y_train, X_test, Y_test, n_look_back_feat
 
 
 def main(job_dir, train_file, eval_file, first_layer_size=256, num_layers=1,
-         scale_factor=0.25, optimizer='RMSprop', learning_rate=0.001,
-         loss='mean_squared_error', train_batch_size=100,
-         eval_batch_size=100, train_epochs=200, eval_epochs=1,
-         train_steps=None, eval_steps=None, eval_frequency=5,
+         scale_factor=0.25, hidden_layer='LSTM', hidden_activation='tanh',
+         recurrent_activation='hard_sigmoid', output_activation='linear', 
+         hidden_dropout=0.0, recurrent_dropout=0.0, optimizer='RMSprop',
+         learning_rate=0.001, loss='mean_squared_error',
+         train_batch_size=100, eval_batch_size=100, train_epochs=200,
+         eval_epochs=1, train_steps=None, eval_steps=None, eval_frequency=5,
          checkpoint_frequency=5):
     """Create a model. Train and evaluate.
 
@@ -331,6 +333,12 @@ def main(job_dir, train_file, eval_file, first_layer_size=256, num_layers=1,
         num_layers (int): Number of hidden layers.
         scale_factor (float): Rate of decay size of units in hidden layers.
             max(1, int(first_layer_size * scale_factor ** i))
+        hidden_layer (str): 
+        hidden_activation (str): 
+        recurrent_activation (str): 
+        output_activation (str): 
+        hidden_dropout (float): 
+        recurrent_dropout (float): 
         optimizer (str): Optimizer for training.
         learning_rate (float): Learning rate for optimizer.
         loss (str): Loss for training and evaluation.
@@ -372,7 +380,12 @@ def main(job_dir, train_file, eval_file, first_layer_size=256, num_layers=1,
 
     model = create_model(batch_input_shape=(n_train_samples, train_batch_size, n_in_features), 
                          hidden_units=hidden_units,
-                         target_dim=(n_train_samples, train_batch_size, n_out_features))
+                         target_dim=(n_train_samples, train_batch_size, n_out_features),
+                         hidden_layer=hidden_layer, hidden_activation=hidden_activation,
+                         recurrent_activation=recurrent_activation,
+                         output_activation=output_activation,
+                         hidden_dropout=hidden_dropout,
+                         recurrent_dropout=recurrent_dropout)
     
     compile_model(model, optimizer, learning_rate, loss)
 
@@ -422,6 +435,36 @@ if __name__ == '__main__':
         type=float,
         default=0.25,
         help='Rate of decay size of units in hidden layers. max(1, int(first_layer_size * scale_factor ** i))')
+    parser.add_argument(
+        '--hidden-layer',
+        type=str,
+        default='LSTM',
+        help='Type of hidden recurrent layer to use. Can be `SimpleRNN`, `GRU`, or `LSTM`')
+    parser.add_argument(
+        '--hidden-activation',
+        type=str,
+        default='tanh',
+        help='Type of activation function between recurrent layers.')
+    parser.add_argument(
+        '--recurrent-activation',
+        type=str,
+        default='hard_sigmoid',
+        help='Type of activation function for the recurrent step. Only applicable to `GRU` and `LSTM`.')
+    parser.add_argument(
+        '--output-activation',
+        type=str,
+        default='linear',
+        help='Type of activation function for the dense output of the neural network.')
+    parser.add_argument(
+        '--hidden-dropout',
+        type=float,
+        default=0.0,
+        help='Amount of dropout between hidden layers (including inputs).')
+    parser.add_argument(
+        '--recurrent-dropout',
+        type=float,
+        default=0.0,
+        help='Amount of dropout for the recurrent step.')
     parser.add_argument(
         '--optimizer',
         type=str,
