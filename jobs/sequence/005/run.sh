@@ -14,25 +14,30 @@ python3 -m sequence.data.preprocess                                            \
   --test-split 0.10                                                            \
   --shuffle
 
-# Hyperparameter tuning
+# Start a remote training job with single instance
 gcloud ml-engine jobs submit training vehicle_simulation_sequence_005_0        \
   --region us-central1                                                         \
-  --scale-tier BASIC                                                           \
+  --scale-tier STANDARD_1                                                      \
   --runtime-version 1.12                                                       \
   --python-version 3.5                                                         \
   --module-name sequence.trainer.train                                         \
   --package-path sequence/sequence/                                            \
   --job-dir gs://vehicle-simulation/jobs/sequence/005                          \
-  --config ./jobs/sequence/005/tuning.yaml                                     \
   --                                                                           \
   --train-file gs://vehicle-simulation/jobs/sequence/005/data/train.csv        \
   --eval-file gs://vehicle-simulation/jobs/sequence/005/data/test.csv          \
+  --first-layer-size 200                                                       \
+  --num-layers 4                                                               \
+  --scale-factor 0.5                                                           \
+  --hidden-layer LSTM                                                          \
+  --hidden-activation relu                                                     \
+  --output-activation linear                                                   \
+  --hidden-dropout 0.4                                                         \
   --optimizer RMSprop                                                          \
   --learning-rate 0.001                                                        \
   --loss mean_squared_error                                                    \
   --train-batch-size 100                                                       \
-  --eval-batch-size 100                                                        \
-  --train-epochs 1                                                             \
+  --train-epochs 200                                                           \
   --eval-epochs 1                                                              \
-  --eval-frequency 1                                                           \
+  --eval-frequency 3                                                           \
   --checkpoint-frequency 1
