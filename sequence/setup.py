@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-required_packages = [ 'Keras==2.2.4' ]
+required_packages = [ 'Keras==2.13.1' ]
 
 setup(
     name='sequence',
